@@ -30,12 +30,28 @@ class ActionEncoder():
         """
         Initializes the ActionEncoder with a predefined mapping of actions to one-hot indices.
         """
-        self.dir2mv = {
+        self.___dir2mv = {
             "left"  :   (0, 0),
             "up"    :   (1, 1),
             "right" :   (2, 2),
             "down"  :   (3, 3),
         }
+
+    def __call__(self, action: str) -> np.ndarray:
+        """
+        Allows the object to be called as a function to encode an action string into a one-hot numpy array.
+
+        Parameters
+        ----------
+        action : str
+            The action string to encode.
+
+        Returns
+        -------
+        numpy.ndarray
+            A one-hot encoded numpy array representing the action.
+        """
+        return self.encode(action)
 
     def encode(self, action: str) -> np.ndarray:
         """
@@ -52,7 +68,7 @@ class ActionEncoder():
             A one-hot encoded numpy array representing the action.
         """
         one_hot_encoding = np.zeros((4, 4))
-        one_hot_encoding[self.dir2mv[action.lower()]] = 1
+        one_hot_encoding[self.__dir2mv[action.lower()]] = 1
         return one_hot_encoding
 
     def decode(self, one_hot_encoding: Union[np.ndarray, list]) -> str:
@@ -71,7 +87,7 @@ class ActionEncoder():
         """
         one_hot_encoding = np.array(one_hot_encoding)
         index = np.argwhere(one_hot_encoding == 1)
-        for action, idx in self.dir2mv.items():
+        for action, idx in self._dir2mv.items():
             if tuple(index[0]) == idx:
                 return action
         return None
@@ -90,7 +106,7 @@ class ActionEncoder():
         bool
             True if the action is valid, False otherwise.
         """
-        return action.lower() in self.dir2mv
+        return action.lower() in self._dir2mv
 
     def get_possible_actions(self) -> list:
         """
@@ -101,4 +117,4 @@ class ActionEncoder():
         list
             A list of all possible action strings.
         """
-        return list(self.dir2mv.keys())
+        return list(self._dir2mv.keys())
