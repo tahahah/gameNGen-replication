@@ -30,7 +30,7 @@ class ActionEncoder():
         """
         Initializes the ActionEncoder with a predefined mapping of actions to one-hot indices.
         """
-        self.___dir2mv = {
+        self.__dir2mv = {
             "left"  :   (0, 0),
             "up"    :   (1, 1),
             "right" :   (2, 2),
@@ -87,7 +87,7 @@ class ActionEncoder():
         """
         one_hot_encoding = np.array(one_hot_encoding)
         index = np.argwhere(one_hot_encoding == 1)
-        for action, idx in self._dir2mv.items():
+        for action, idx in self.__dir2mv.items():
             if tuple(index[0]) == idx:
                 return action
         return None
@@ -106,7 +106,7 @@ class ActionEncoder():
         bool
             True if the action is valid, False otherwise.
         """
-        return action.lower() in self._dir2mv
+        return action.lower() in self.__dir2mv
 
     def get_possible_actions(self) -> list:
         """
@@ -117,4 +117,4 @@ class ActionEncoder():
         list
             A list of all possible action strings.
         """
-        return list(self._dir2mv.keys())
+        return list(self.__dir2mv.keys())
