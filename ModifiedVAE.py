@@ -82,7 +82,7 @@ class ModifiedVAE(AutoencoderKL):
         # self.freeze_decoder()
 
     def initialize_encoder_lora(self):
-        get_peft_model(self.vae.encoder, self.lora_config)
+        get_peft_model(self.encoder, self.lora_config)
 
     def freeze_decoder(self):
         for name, param in self.named_parameters():
@@ -93,13 +93,3 @@ class ModifiedVAE(AutoencoderKL):
         total_params = sum(p.numel() for p in self.parameters())
         total_trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print(f"Total parameters: {total_params}, Total Trainable parameters: {total_trainable_params}")
-
-
-    def encode(self, x):
-        x = self.pre_encoder_layers(x)
-
-        return self.vae.encode(x)
-    
-    def decode(self, latents):
-        # Use the original VAE decoder
-        return self.vae.decode(latents)
