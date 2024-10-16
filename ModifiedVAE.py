@@ -1,8 +1,3 @@
-import json
-import logging
-
-import onnx
-import onnxruntime as ort
 import torch
 import torch.nn as nn
 from diffusers import AutoencoderKL
@@ -17,7 +12,7 @@ class Squeeze(nn.Module):
     def forward(self, x):
         return torch.squeeze(x, dim=1)
 
-class ModifiedVAE(nn.Module):
+class ModifiedVAE(AutoencoderKL):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         pre_encoder_layers = nn.Sequential()
