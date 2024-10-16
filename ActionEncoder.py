@@ -67,8 +67,8 @@ class ActionEncoder():
         numpy.ndarray
             A one-hot encoded numpy array representing the action.
         """
-        one_hot_encoding = np.zeros((4, 4))
-        one_hot_encoding[self.__dir2mv[action.lower()]] = 1
+        one_hot_encoding = np.zeros(4)
+        one_hot_encoding[self.__dir2mv[action.lower()][0]] = 1
         return one_hot_encoding
 
     def decode(self, one_hot_encoding: Union[np.ndarray, list]) -> str:
@@ -87,8 +87,10 @@ class ActionEncoder():
         """
         one_hot_encoding = np.array(one_hot_encoding)
         index = np.argwhere(one_hot_encoding == 1)
+        if index.size == 0:
+            return None
         for action, idx in self.__dir2mv.items():
-            if tuple(index[0]) == idx:
+            if index[0][0] == idx[0]:
                 return action
         return None
 
