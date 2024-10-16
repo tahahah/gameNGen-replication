@@ -7,31 +7,38 @@ import torch
 import torch.nn as nn
 from diffusers import AutoencoderKL
 from peft import LoraConfig, get_peft_model
+import copy
 
+class Squeeze(nn.Module):
+    def __init__(self, dim):
+        super(Squeeze, self).__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        return torch.squeeze(x, dim=1)
 
 class ModifiedVAE(nn.Module):
-    def __init__(self, original_vae="stabilityai/sdxl-turbo", target_modules=None, rank=64, use_dora=True, use_rslora=True, lora_dropout=0.05):
-        super().__init__()
-        self.vae = AutoencoderKL.from_pretrained(original_vae, subfolder="vae")
-        self.pre_encoder_layers = nn.Sequential()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        pre_encoder_layers = nn.Sequential()
         layers = [
-            ('conv3d_initial', nn.Conv3d(in_channels=64, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0)),
+            ('conv3d_initial', nn.Conv3d(in_channels=64, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=1)), # (b, 32, 3, w, h)
             ('relu_initial', nn.ReLU()),
-            ('pool3d_initial', nn.MaxPool3d(kernel_size=(2, 2, 2), stride=2)),
-            ('conv3d_middle', nn.Conv3d(in_channels=32, out_channels=16, kernel_size=(3, 3, 3), stride=1, padding=0)),
+            ('conv3d_middle', nn.Conv3d(in_channels=32, out_channels=16, kernel_size=(3, 3, 3), stride=1, padding=1)),  # (b, 16, 3, w, h)
             ('relu_middle', nn.ReLU()),
-            ('pool3d_middle', nn.MaxPool3d(kernel_size=(2, 2, 2), stride=2)),
-            ('conv3d_final', nn.Conv3d(in_channels=16, out_channels=8, kernel_size=(3, 3, 3), stride=1, padding=0)),
+            ('conv3d_final', nn.Conv3d(in_channels=16, out_channels=8, kernel_size=(3, 3, 3), stride=1, padding=1)),    # (b, 8, 3, w, h)
             ('relu_final', nn.ReLU()),
-            ('pool3d_final', nn.MaxPool3d(kernel_size=(2, 2, 2), stride=2)),
-            ('conv3d_output', nn.Conv3d(in_channels=8, out_channels=3, kernel_size=(1, 1, 1), stride=1, padding=0)),
-            ('relu_output', nn.ReLU())
+            ('conv3d_output', nn.Conv3d(in_channels=8, out_channels=1, kernel_size=(1, 1, 1), stride=1, padding=0)),    # (b, 1, 3, w, h)
+            ('relu_output', nn.ReLU()),
+            ('squeeze', Squeeze(dim=2)),
+            ('conv_in', copy.deepcopy(self.encoder.conv_in))
         ]
         for name, layer in layers:
-            self.pre_encoder_layers.add_module(name, layer)
+            pre_encoder_layers.add_module(name, layer)
+        self.encoder.conv_in = pre_encoder_layers
 
-        if target_modules:
-            self.target_modules = target_modules
+        if 'target_modules' in kwargs:
+            self.target_modules = kwargs['target_modules']
         else:
             self.target_modules = [
                 "conv_in",
@@ -66,15 +73,15 @@ class ModifiedVAE(nn.Module):
                 "mid_block.resnets.1.conv2",
                 "conv_out"
             ]
-        
+        rank = kwargs["rank"] if "rank" in kwargs else 64
         self.lora_config = LoraConfig(
             r=rank,
-            use_dora=use_dora,
+            use_dora=(kwargs["use_dora"] if "use_dora" in kwargs else False),
             lora_alpha=rank,
             init_lora_weights="gaussian",
-            lora_dropout=lora_dropout,
-            target_modules=target_modules,
-            use_rslora=use_rslora
+            lora_dropout=(kwargs["lora_dropout"] if "lora_dropout" in kwargs else None),
+            target_modules=self.target_modules,
+            use_rslora=(kwargs["use_rslora"] if "use_rslora" in kwargs else None)
         )
         # self.initialize_encoder_lora()
         # self.freeze_decoder()
