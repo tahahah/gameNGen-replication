@@ -8,7 +8,7 @@ class ModifiedUNet(UNet2DConditionModel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # unet = super().from_pretrained("segmind/tiny-sd", subfolder="unet")
-        self.config["cross_attention_dim"] = 256
+        self.register_to_config(cross_attention_dim=256)
 
         for down_block in self.down_blocks:
             for attn in down_block.attentions:
