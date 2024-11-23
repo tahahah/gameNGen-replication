@@ -57,3 +57,6 @@ class PacmanBufferDataset(IterableDataset):
             # Optional: limit buffer size to save memory
             if len(buffer) >= self.sequence_length:
                 buffer = buffer[-self.sequence_length:]
+    
+    def __len__(self):
+        return self.dataset.info.splits['train'].num_examples

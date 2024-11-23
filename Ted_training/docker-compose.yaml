@@ -1,0 +1,15 @@
+services:
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    shm_size: '8gb'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all

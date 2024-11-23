@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, asdict
+from datasets import load_dataset
 from pathlib import Path
 from typing import Dict, Tuple, Any
 
@@ -16,7 +17,8 @@ import torch.nn as nn
 import wandb
 import numpy as np
 from dotenv import load_dotenv
-from huggingface_hub import login, upload_file, create_repo, RepositoryNotFoundError
+from huggingface_hub import login, upload_file, create_repo
+from huggingface_hub.utils import RepositoryNotFoundError
 from torch.utils.data import DataLoader
 from torchvision.utils import make_grid
 from tqdm import tqdm
@@ -31,9 +33,9 @@ class InnerModelConfig:
     """Configuration for the inner model architecture."""
     img_channels: int = 3
     num_steps_conditioning: int = 4
-    cond_channels: int = 256
+    cond_channels: int = 100
     depths: list[int] = (2, 2, 2, 2)
-    channels: list[int] = (64, 64, 64, 64)
+    channels: list[int] = (16, 16, 16, 16)
     attn_depths: list[int] = (0, 0, 0, 0)
     num_actions: int = 4
 
@@ -92,9 +94,9 @@ def create_batch_from_obs(obs: Dict[str, torch.Tensor], device: torch.device) ->
     actions = obs['actions']
     
     return Batch(
-        obs=frames.type(torch.float32),
+        obs=frames.type(torch.float16),
         act=actions.type(torch.LongTensor),
-        mask_padding=torch.full((1, 64), True, dtype=torch.bool)
+        mask_padding=torch.full((1, 16), True, dtype=torch.bool)
     ).to(device)
 
 
@@ -209,8 +211,46 @@ def train_diffusion_model(
             # Get predicted images if it's time to log images
             if global_step % image_log_interval == 0:
                 with torch.no_grad():
-                    pred_images = denoiser.sample(batch_train)
-                    log_images(batch_train, pred_images, global_step)
+                    # Use a small sigma for inference to get cleaner predictions
+                    batch_size = batch_train.obs.size(0)
+                    sigma = torch.ones(batch_size, device=denoiser.device) * 0.1  # Small sigma for clean predictions
+                    n = denoiser.cfg.inner_model.num_steps_conditioning
+                    
+                    # Get the conditioning observations and actions
+                    obs = batch_train.obs[:, :n]  # Take first n frames for conditioning
+                    b, t, c, h, w = obs.shape
+                    obs = obs.reshape(b, t * c, h, w)
+                    act = batch_train.act[:, :n]
+                    
+                    # Create a new batch for logging with just the target frame
+                    log_batch = Batch(
+                        obs=batch_train.obs[:, n],
+                        act=batch_train.act[:, n:n+1],
+                        mask_padding=batch_train.mask_padding[:, n:n+1]
+                    )
+                    
+                    # Get the next observation to denoise
+                    noisy_next_obs = denoiser.apply_noise(log_batch.obs, sigma, denoiser.cfg.sigma_offset_noise)
+                    
+                    # Denoise the observation
+                    pred_images = denoiser.denoise(noisy_next_obs, sigma, obs, act)
+                    log_images(log_batch, pred_images, global_step)
+
+                    # Log the full sequence from first batch every 16 steps
+            if global_step % 16 == 0:
+                seq_length = batch_train.obs.size(1)
+                sequence_batch = Batch(
+                    obs=batch_train.obs[0, :seq_length],  # All frames from first sequence
+                    act=batch_train.act[0, :seq_length],
+                    mask_padding=batch_train.mask_padding[0, :seq_length]
+                )
+                # Log sequence without predictions
+                wandb.log({
+                    "sequence/frames": wandb.Image(
+                        make_grid(sequence_batch.obs, nrow=seq_length, normalize=True, value_range=(0, 255)).cpu(),
+                        caption=f"Full Sequence at step {global_step}"
+                    )
+                }, step=global_step)
             
             loss.backward()
             optimizer.step()
@@ -305,6 +345,21 @@ def main():
     
     # Model name for HuggingFace
     model_name = "pacman-ted-denoiser"
+
+    # Dataset
+    dataset = load_dataset("Tahahah/PacmanDataset_3", split="train", verification_mode="no_checks", streaming=True)
+    
+    # Create the dataset
+    buffer_dataset = PacmanBufferDataset(dataset, sequence_length=16)
+
+    # Create the DataLoader
+    dataloader = DataLoader(
+        buffer_dataset,
+        batch_size=1,
+        num_workers=0,  # Reduce worker processes to avoid shared memory issues
+        pin_memory=True,
+        persistent_workers=False  # Disable persistent workers
+    )
     
     # Initialize wandb with config
     wandb.init(
