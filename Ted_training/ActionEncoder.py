@@ -69,7 +69,7 @@ class ActionEncoder():
         """
         one_hot_encoding = 0
         if isinstance(action, str):
-            one_hot_encoding = self.__dir2mv[action.lower()][0]
+            one_hot_encoding = self.__dir2mv[action.lower()]
         elif isinstance(action, int) and action in range(4):
             one_hot_encoding = action
 

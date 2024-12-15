@@ -24,6 +24,7 @@ from torchvision.utils import make_grid
 from tqdm import tqdm
 
 from models.diffusion import Denoiser
+from models.diffusion import DiffusionSampler
 from utils import extract_state_dict
 from PacmanBufferDataset import PacmanBufferDataset
 
