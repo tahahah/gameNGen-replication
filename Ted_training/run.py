@@ -144,6 +144,17 @@ def main():
     denoiser_cfg = DenoiserConfig()
     denoiser = Denoiser(denoiser_cfg)
 
+
+    # Replace 'path_to_weights' with the actual path to your model's weight file
+    path_to_weights = "model_epoch_9.pt"
+
+    # Load the state dict from the file
+    state_dict = torch.load(path_to_weights, map_location=torch.device('cpu'))
+
+    # Load the state dict into the denoiser model
+    denoiser.load_state_dict(state_dict['model_state_dict'])
+
+
     diffusion_sampler_cfg = DiffusionSamplerConfig()
     diffsamp = DiffusionSampler(denoiser , diffusion_sampler_cfg)
 
